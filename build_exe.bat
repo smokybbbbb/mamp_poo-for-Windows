@@ -29,6 +29,8 @@ pyinstaller ^
     --add-data "manager;manager" ^
     --add-data "ui;ui" ^
     --add-data "crab_logo.png;." ^
+    --add-data "crab_logo.ico;." ^
+    --add-data "assets;assets" ^
     --hidden-import customtkinter ^
     --hidden-import PIL ^
     --hidden-import requests ^

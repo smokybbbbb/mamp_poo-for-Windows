@@ -1,4 +1,5 @@
 """VHost dialog and Setup/Install dialog."""
+import re
 import threading
 import tkinter as tk
 import tkinter.filedialog as fd
@@ -8,6 +9,7 @@ import customtkinter as ctk
 
 from manager.config import PHP_VERSIONS, VHost, AppConfig, MARIADB_DATA
 from manager import downloader, server as srv, ssl as ssl_mgr
+from ui.fonts import APP_FONT
 
 
 # ─── VHost Dialog ─────────────────────────────────────────────────────────────
@@ -41,8 +43,10 @@ class VHostDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(self, text="Domain", anchor="w").pack(fill="x", **p)
         self.domain_var = tk.StringVar(value=v.domain if v else "")
+        domain_vcmd = (self.register(self._validate_domain_char), "%S")
         ctk.CTkEntry(self, textvariable=self.domain_var,
-                     placeholder_text="mysite.dev").pack(fill="x", **p)
+                     placeholder_text="mysite.dev",
+                     validate="key", validatecommand=domain_vcmd).pack(fill="x", **p)
 
         ctk.CTkLabel(self, text="Document Root", anchor="w").pack(fill="x", **p)
         row = ctk.CTkFrame(self, fg_color="transparent")
@@ -75,8 +79,19 @@ class VHostDialog(ctk.CTkToplevel):
                       command=self.destroy).pack(side="left")
         ctk.CTkButton(btns, text="บันทึก", command=self._save).pack(side="right")
 
+    @staticmethod
+    def _validate_domain_char(inserted: str) -> bool:
+        """Only allow domain-legal characters (a-z, 0-9, '-', '.') — blocks Thai/other input."""
+        if inserted == "":
+            return True
+        return bool(re.fullmatch(r"[a-zA-Z0-9.\-]+", inserted))
+
     def _browse(self):
-        path = fd.askdirectory(title="เลือก Document Root")
+        self.attributes("-topmost", False)
+        path = fd.askdirectory(title="เลือก Document Root", parent=self)
+        self.attributes("-topmost", True)
+        self.lift()
+        self.focus_force()
         if path:
             self.root_var.set(path)
 
@@ -88,6 +103,10 @@ class VHostDialog(ctk.CTkToplevel):
 
         if not domain:
             self.status.configure(text="กรุณาใส่ Domain", text_color="red"); return
+        if "." not in domain:
+            self.status.configure(text="Domain ต้องมีจุด เช่น mysite.local", text_color="red"); return
+        if domain.startswith(".") or domain.endswith("."):
+            self.status.configure(text="Domain ห้ามขึ้นต้นหรือลงท้ายด้วยจุด", text_color="red"); return
         if not root:
             self.status.configure(text="กรุณาเลือก Document Root", text_color="red"); return
         if not Path(root).exists():
@@ -146,7 +165,7 @@ class SetupDialog(ctk.CTkToplevel):
 
     def _build(self):
         ctk.CTkLabel(self, text="ติดตั้ง Components",
-                     font=("", 18, "bold")).pack(pady=(20, 2))
+                     font=(APP_FONT, 18, "bold")).pack(pady=(20, 2))
         ctk.CTkLabel(self, text="กด Install ทีละรายการ — ดาวน์โหลดอัตโนมัติ",
                      text_color="gray").pack(pady=(0, 12))
 
@@ -192,7 +211,7 @@ class SetupDialog(ctk.CTkToplevel):
         self._set_error("")  # hide initially
 
     def _section(self, title: str):
-        ctk.CTkLabel(self.scroll, text=title, font=("", 12, "bold"),
+        ctk.CTkLabel(self.scroll, text=title, font=(APP_FONT, 12, "bold"),
                      anchor="w", text_color="#60a5fa").pack(fill="x", pady=(10, 2), padx=2)
 
     def _dep_row(self, key: str, label: str, check_fn, install_fn):
@@ -202,10 +221,10 @@ class SetupDialog(ctk.CTkToplevel):
 
         dot = ctk.CTkLabel(card, text="●",
                            text_color="#22c55e" if ready else "#4b5563",
-                           font=("", 13), width=26)
+                           font=(APP_FONT, 13), width=26)
         dot.grid(row=0, column=0, padx=(10, 4), pady=10)
 
-        ctk.CTkLabel(card, text=label, font=("", 12),
+        ctk.CTkLabel(card, text=label, font=(APP_FONT, 12),
                      anchor="w").grid(row=0, column=1, sticky="w", padx=4)
 
         progress = ctk.CTkProgressBar(card, width=130)
@@ -213,7 +232,7 @@ class SetupDialog(ctk.CTkToplevel):
 
         if ready:
             ctk.CTkLabel(card, text="ติดตั้งแล้ว ✓", text_color="#22c55e",
-                         font=("", 11)).grid(row=0, column=2, padx=8)
+                         font=(APP_FONT, 11)).grid(row=0, column=2, padx=8)
         else:
             progress.grid(row=0, column=2, padx=8)
             btn = ctk.CTkButton(

@@ -468,7 +468,9 @@ def write_vhost_conf(vhost: VHost, http_port: int = 80, https_port: int = 443):
 
     DirectoryIndex index.php index.html index.htm
 
-    ProxyPassMatch "^/(.*\\.php(/.*)?$)" "fcgi://127.0.0.1:{php_port}/{root}/$1"
+    RewriteEngine On
+    RewriteCond %{{DOCUMENT_ROOT}}%{{REQUEST_URI}} -f
+    RewriteRule ^/(.*\\.php(/.*)?)$ "fcgi://127.0.0.1:{php_port}/{root}/$1" [P,L]
 
     ErrorLog "logs/{vhost.domain}-error.log"
     CustomLog "logs/{vhost.domain}-access.log" common
@@ -496,7 +498,9 @@ def write_vhost_conf(vhost: VHost, http_port: int = 80, https_port: int = 443):
 
     DirectoryIndex index.php index.html index.htm
 
-    ProxyPassMatch "^/(.*\\.php(/.*)?$)" "fcgi://127.0.0.1:{php_port}/{root}/$1"
+    RewriteEngine On
+    RewriteCond %{{DOCUMENT_ROOT}}%{{REQUEST_URI}} -f
+    RewriteRule ^/(.*\\.php(/.*)?)$ "fcgi://127.0.0.1:{php_port}/{root}/$1" [P,L]
 </VirtualHost>
 """
 

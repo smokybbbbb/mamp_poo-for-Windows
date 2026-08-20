@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 HOSTS_FILE = Path(r"C:\Windows\System32\drivers\etc\hosts")
-MARKER = "# LocalDevManager"
+MARKER = "# MampPoo"
 
 STARTUPINFO = None
 if sys.platform == "win32":

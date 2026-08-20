@@ -8,6 +8,7 @@ from manager import server as srv, ssl as ssl_mgr, hosts as hosts_mgr
 from manager.config import AppConfig, VHost, save_config
 from manager.downloader import is_php_ready
 from ui.dialogs import VHostDialog
+from ui.fonts import APP_FONT
 
 
 class SitesPage(ctk.CTkFrame):
@@ -20,7 +21,7 @@ class SitesPage(ctk.CTkFrame):
     def _build(self):
         hdr = ctk.CTkFrame(self, fg_color="transparent")
         hdr.pack(fill="x", padx=20, pady=(16, 8))
-        ctk.CTkLabel(hdr, text="Sites", font=("", 20, "bold")).pack(side="left")
+        ctk.CTkLabel(hdr, text="Sites", font=(APP_FONT, 20, "bold")).pack(side="left")
         ctk.CTkButton(hdr, text="+ Add Site", width=100,
                       command=self._add_site).pack(side="right")
 
@@ -50,7 +51,7 @@ class SitesPage(ctk.CTkFrame):
         top = ctk.CTkFrame(card, fg_color="transparent")
         top.pack(fill="x", padx=14, pady=(12, 8))
 
-        ctk.CTkLabel(top, text="●", text_color=dot_col, font=("", 16),
+        ctk.CTkLabel(top, text="●", text_color=dot_col, font=(APP_FONT, 16),
                      width=22).pack(side="left")
 
         info = ctk.CTkFrame(top, fg_color="transparent")
@@ -59,7 +60,7 @@ class SitesPage(ctk.CTkFrame):
         name_row = ctk.CTkFrame(info, fg_color="transparent")
         name_row.pack(fill="x")
         ctk.CTkLabel(name_row, text=vh.domain,
-                     font=("", 15, "bold")).pack(side="left")
+                     font=(APP_FONT, 15, "bold")).pack(side="left")
         self._badge(name_row, f"PHP {vh.php_version}",
                     "#1e3a5f" if php_ok else "#3a1a1a",
                     "#7dd3fc" if php_ok else "#fca5a5")
@@ -69,7 +70,7 @@ class SitesPage(ctk.CTkFrame):
             self._badge(name_row, "PHP not installed", "#3a1a1a", "#fca5a5")
 
         ctk.CTkLabel(info, text=vh.root_path, text_color="gray",
-                     font=("", 11)).pack(anchor="w")
+                     font=(APP_FONT, 11)).pack(anchor="w")
 
         btns = ctk.CTkFrame(top, fg_color="transparent")
         btns.pack(side="right")
@@ -90,7 +91,7 @@ class SitesPage(ctk.CTkFrame):
     @staticmethod
     def _badge(parent, text, bg, fg):
         tk.Label(parent, text=f" {text} ", bg=bg, fg=fg,
-                 font=("Segoe UI", 9, "bold"), padx=4, pady=1
+                 font=(APP_FONT, 9, "bold"), padx=4, pady=1
                  ).pack(side="left", padx=(6, 0))
 
     def _add_site(self):

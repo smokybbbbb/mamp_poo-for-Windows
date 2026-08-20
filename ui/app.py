@@ -1,4 +1,5 @@
-"""Main application window — auto-starts everything on launch."""
+"""Main application window — user starts services manually."""
+import sys
 import threading
 import webbrowser
 from pathlib import Path
@@ -8,13 +9,18 @@ from PIL import Image
 
 from manager import server as srv, downloader
 from manager.config import AppConfig, load_config, save_config, DATA_DIR, MARIADB_DATA
+from manager.update_check import check_for_update
 from ui.sites_page import SitesPage
 from ui.php_page import PhpPage
 from ui.dialogs import SetupDialog
+from ui.fonts import APP_FONT
 
 
 APP_NAME = "Mamp Poo"
-LOGO_PATH = Path(__file__).resolve().parent.parent / "crab_logo.png"
+# When frozen by PyInstaller, bundled data lives under sys._MEIPASS, not next to this file.
+_BASE_DIR = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
+LOGO_PATH = _BASE_DIR / "crab_logo.png"
+ICON_PATH = _BASE_DIR / "crab_logo.ico"
 
 
 class App(ctk.CTk):
@@ -28,9 +34,12 @@ class App(ctk.CTk):
         self._tray = None
         self._quit_requested = False  # True when user picked "Quit" (not just close)
 
-        # Window icon (PNG via PIL → Tk PhotoImage)
+        # Window icon — .ico controls the actual Windows title bar/taskbar icon;
+        # iconphoto() alone doesn't reliably override it on Windows.
         try:
-            if LOGO_PATH.exists():
+            if ICON_PATH.exists():
+                self.iconbitmap(default=str(ICON_PATH))
+            elif LOGO_PATH.exists():
                 import tkinter as tk
                 self._icon_img = tk.PhotoImage(file=str(LOGO_PATH))
                 self.iconphoto(True, self._icon_img)
@@ -39,7 +48,10 @@ class App(ctk.CTk):
 
         self._build()
         self._show_page("sites")
+        self._refresh_dots()
+        self._update_main_btn()
         self.after(600, self._on_launch)
+        self.after(1500, self._check_update_async)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # System tray icon — lets services keep running when window closes
@@ -68,16 +80,16 @@ class App(ctk.CTk):
             except Exception:
                 pass
 
-        ctk.CTkLabel(side, text="Mamp Poo", font=("", 22, "bold"),
+        ctk.CTkLabel(side, text="Mamp Poo", font=(APP_FONT, 22, "bold"),
                      text_color="#fb923c").pack(pady=(0, 0))
-        ctk.CTkLabel(side, text="local dev manager", font=("", 10),
+        ctk.CTkLabel(side, text="local dev manager", font=(APP_FONT, 10),
                      text_color="#6b7280").pack(pady=(0, 22))
 
         self._nav_btns = {}
         for label, key in [("Sites", "sites"), ("PHP Versions", "php"), ("Settings", "settings")]:
             b = ctk.CTkButton(side, text=label, anchor="w",
                               fg_color="transparent", hover_color="#1e2d45",
-                              text_color="#d1d5db", font=("", 13),
+                              text_color="#d1d5db", font=(APP_FONT, 13),
                               command=lambda k=key: self._show_page(k))
             b.pack(fill="x", padx=10, pady=2)
             self._nav_btns[key] = b
@@ -86,21 +98,27 @@ class App(ctk.CTk):
 
         ctk.CTkButton(side, text="⚙  Setup / Install", anchor="w",
                       fg_color="transparent", hover_color="#1e2d45",
-                      text_color="#9ca3af", font=("", 12),
+                      text_color="#9ca3af", font=(APP_FONT, 12),
                       command=lambda: SetupDialog(self, self.cfg, on_done=self._after_setup)
                       ).pack(fill="x", padx=10, pady=2)
 
         ctk.CTkButton(side, text="🗄  phpMyAdmin", anchor="w",
                       fg_color="transparent", hover_color="#1e2d45",
-                      text_color="#9ca3af", font=("", 12),
+                      text_color="#9ca3af", font=(APP_FONT, 12),
                       command=self._open_phpmyadmin,
                       ).pack(fill="x", padx=10, pady=2)
 
         ctk.CTkButton(side, text="📁  Data Folder", anchor="w",
                       fg_color="transparent", hover_color="#1e2d45",
-                      text_color="#9ca3af", font=("", 12),
+                      text_color="#9ca3af", font=(APP_FONT, 12),
                       command=lambda: self._open_folder(DATA_DIR),
                       ).pack(fill="x", padx=10, pady=2)
+
+        # Update banner — hidden until an update is actually found, pinned to
+        # the bottom of the sidebar so it never overlaps the topbar status text
+        self.update_lbl = ctk.CTkLabel(side, text="", text_color="#3b82f6",
+                                       font=(APP_FONT, 11, "bold"), cursor="hand2",
+                                       wraplength=180, justify="left", anchor="w")
 
         # ── Top bar ──
         topbar = ctk.CTkFrame(self, height=52, corner_radius=0, fg_color="#161b22")
@@ -125,8 +143,8 @@ class App(ctk.CTk):
         )
         self.main_btn.pack(side="right", padx=16, pady=10)
 
-        self.status_msg = ctk.CTkLabel(topbar, text="กำลังเริ่มต้น…",
-                                       text_color="#6b7280", font=("", 11))
+        self.status_msg = ctk.CTkLabel(topbar, text="หยุดอยู่",
+                                       text_color="#6b7280", font=(APP_FONT, 11))
         self.status_msg.pack(side="right", padx=(0, 8))
 
         # ── Content ──
@@ -134,7 +152,7 @@ class App(ctk.CTk):
         self.content.grid(row=1, column=1, sticky="nsew")
 
         # ── Status bar ──
-        self.statusbar = ctk.CTkLabel(self, text="", font=("", 10),
+        self.statusbar = ctk.CTkLabel(self, text="", font=(APP_FONT, 10),
                                       text_color="#6b7280", height=22,
                                       fg_color="#0d1117", anchor="w")
         self.statusbar.grid(row=2, column=1, sticky="ew", padx=8)
@@ -144,10 +162,10 @@ class App(ctk.CTk):
         f = ctk.CTkFrame(parent, fg_color="transparent", cursor="hand2")
         f.pack(side="left", padx=8)
         dot = ctk.CTkLabel(f, text="●", text_color="#4b5563",
-                           font=("", 14), cursor="hand2")
+                           font=(APP_FONT, 14), cursor="hand2")
         dot.pack(side="left")
         lbl = ctk.CTkLabel(f, text=label, text_color="#6b7280",
-                           font=("", 11), cursor="hand2")
+                           font=(APP_FONT, 11), cursor="hand2")
         lbl.pack(side="left", padx=(2, 0))
         if command:
             for w in (f, dot, lbl):
@@ -174,7 +192,7 @@ class App(ctk.CTk):
         import tkinter as tk
         f = ctk.CTkFrame(self.content, fg_color="transparent")
         f.pack(fill="both", expand=True, padx=24, pady=24)
-        ctk.CTkLabel(f, text="Settings", font=("", 20, "bold")).pack(anchor="w", pady=(0, 20))
+        ctk.CTkLabel(f, text="Settings", font=(APP_FONT, 20, "bold")).pack(anchor="w", pady=(0, 20))
 
         def row(lbl, var, ph):
             r = ctk.CTkFrame(f, fg_color="transparent")
@@ -190,7 +208,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(f,
                      text="หมายเหตุ: Port 80/443 ต้องการสิทธิ์ Administrator\n"
                           "ถ้าไม่ต้องการรัน as Admin ให้เปลี่ยนเป็น 8080/8443",
-                     text_color="orange", font=("", 11), justify="left").pack(anchor="w", pady=(6, 16))
+                     text_color="orange", font=(APP_FONT, 11), justify="left").pack(anchor="w", pady=(6, 16))
 
         def save():
             try:
@@ -208,17 +226,26 @@ class App(ctk.CTk):
 
         # ── Desktop shortcut ──
         ctk.CTkFrame(f, height=1, fg_color="#1f2937").pack(fill="x", pady=(0, 20))
-        ctk.CTkLabel(f, text="Shortcut", font=("", 15, "bold")).pack(anchor="w", pady=(0, 8))
+        ctk.CTkLabel(f, text="Shortcut", font=(APP_FONT, 15, "bold")).pack(anchor="w", pady=(0, 8))
         ctk.CTkLabel(f,
                      text="สร้าง shortcut บน Desktop เพื่อให้เปิดโปรแกรมได้ด้วยการดับเบิ้ลคลิก\n"
                           "(ไม่ต้องเปิด command line)",
-                     text_color="gray", justify="left", font=("", 11)).pack(anchor="w", pady=(0, 10))
+                     text_color="gray", justify="left", font=(APP_FONT, 11)).pack(anchor="w", pady=(0, 10))
 
-        self._shortcut_status = ctk.CTkLabel(f, text="", text_color="gray", font=("", 11))
+        self._shortcut_status = ctk.CTkLabel(f, text="", text_color="gray", font=(APP_FONT, 11))
 
         ctk.CTkButton(f, text="🖥  สร้าง Desktop Shortcut",
                       command=self._create_shortcut).pack(anchor="w")
         self._shortcut_status.pack(anchor="w", pady=(6, 0))
+
+    @staticmethod
+    def _short_path(path: "Path") -> "Path":
+        """8.3 short path alias — ASCII-only, sidesteps WScript.Shell's broken
+        handling of Unicode (e.g. Thai) paths when saving .lnk shortcuts."""
+        import ctypes
+        buf = ctypes.create_unicode_buffer(260)
+        n = ctypes.windll.kernel32.GetShortPathNameW(str(path), buf, 260)
+        return Path(buf.value) if n else path
 
     def _create_shortcut(self):
         import subprocess
@@ -230,27 +257,39 @@ class App(ctk.CTk):
         if not vbs.exists():
             vbs = script_dir / "LocalDev Manager.vbs"
 
-        # Resolve real desktop (works even if OneDrive remaps it)
+        # Resolve real desktop (works even if OneDrive remaps it to a non-ASCII path —
+        # calling the Win32 API directly avoids mangling Thai text through subprocess
+        # stdout, which uses the console codepage and turns it into "?????").
         try:
-            result = subprocess.run(
-                ["powershell", "-NoProfile", "-Command",
-                 "[Environment]::GetFolderPath('Desktop')"],
-                capture_output=True, text=True, timeout=5,
-            )
-            desktop = Path(result.stdout.strip())
+            import ctypes
+            CSIDL_DESKTOPDIRECTORY = 0x0010
+            buf = ctypes.create_unicode_buffer(260)
+            ctypes.windll.shell32.SHGetFolderPathW(None, CSIDL_DESKTOPDIRECTORY, None, 0, buf)
+            desktop = Path(buf.value) if buf.value else (Path.home() / "Desktop")
         except Exception:
             desktop = Path.home() / "Desktop"
 
         lnk = desktop / "Mamp Poo.lnk"
 
+        # WScript.Shell's CreateShortcut/.Save() can't reliably handle non-ASCII
+        # (e.g. Thai) paths — use 8.3 short-path aliases for every path fed into it.
+        lnk_com = self._short_path(desktop) / "Mamp Poo.lnk"
+        script_dir_com = self._short_path(script_dir)
+        vbs_com = self._short_path(vbs)
+
+        icon_part = ""
+        if ICON_PATH.exists():
+            icon_esc = str(self._short_path(ICON_PATH)).replace(chr(92), chr(92) + chr(92))
+            icon_part = f"$s.IconLocation   = '{icon_esc},0'\n"
+
         ps = f"""
 $ws = New-Object -ComObject WScript.Shell
-$s  = $ws.CreateShortcut('{str(lnk).replace(chr(92), chr(92)+chr(92))}')
+$s  = $ws.CreateShortcut('{str(lnk_com).replace(chr(92), chr(92)+chr(92))}')
 $s.TargetPath      = 'wscript.exe'
-$s.Arguments       = '/b "{str(vbs).replace(chr(92), chr(92)+chr(92))}"'
-$s.WorkingDirectory= '{str(script_dir).replace(chr(92), chr(92)+chr(92))}'
+$s.Arguments       = '/b "{str(vbs_com).replace(chr(92), chr(92)+chr(92))}"'
+$s.WorkingDirectory= '{str(script_dir_com).replace(chr(92), chr(92)+chr(92))}'
 $s.Description     = 'Mamp Poo'
-$s.Save()
+{icon_part}$s.Save()
 """
         r = subprocess.run(
             ["powershell", "-NoProfile", "-Command", ps],
@@ -268,7 +307,7 @@ $s.Save()
     # ─── Launch / Auto-start ──────────────────────────────────────────────────
 
     def _on_launch(self):
-        """Called after window is ready. Checks deps then auto-starts."""
+        """Called after window is ready. Checks deps; does not auto-start services."""
         missing = (
             not downloader.is_apache_ready() or
             not downloader.is_mariadb_ready() or
@@ -278,18 +317,36 @@ $s.Save()
             self._set_status("กรุณาติดตั้ง components ก่อน")
             SetupDialog(self, self.cfg, on_done=self._after_setup)
         else:
-            self._start_all_async()
+            self._set_status("พร้อมใช้งาน — กด ▶ Start All หรือคลิกจุดสถานะเพื่อเริ่ม service ที่ต้องการ")
 
     def _after_setup(self):
         save_config(self.cfg)
         self._save_and_refresh()
+        self._update_main_btn()
         missing = (
             not downloader.is_apache_ready() or
             not downloader.is_mariadb_ready() or
             not self.cfg.installed_php
         )
-        if not missing:
-            self._start_all_async()
+        if missing:
+            self._set_status("กรุณาติดตั้ง components ก่อน")
+        else:
+            self._set_status("ติดตั้งเสร็จแล้ว — กด ▶ Start All หรือคลิกจุดสถานะเพื่อเริ่ม service ที่ต้องการ")
+
+    def _check_update_async(self):
+        """Silent background check — no banner if offline, no release, or up to date."""
+        def run():
+            result = check_for_update()
+            if result:
+                tag, url = result
+                self.after(0, lambda: self._show_update_banner(tag, url))
+        threading.Thread(target=run, daemon=True).start()
+
+    def _show_update_banner(self, tag: str, url: str):
+        self.update_lbl.configure(text=f"🔔 มีเวอร์ชันใหม่ {tag}\nคลิกเพื่อดาวน์โหลด")
+        self.update_lbl.unbind("<Button-1>")
+        self.update_lbl.bind("<Button-1>", lambda _e: webbrowser.open(url))
+        self.update_lbl.pack(side="bottom", fill="x", padx=14, pady=14)
 
     def _start_all_async(self):
         self._set_status("กำลังเริ่มต้น services…")

@@ -11,14 +11,14 @@ Manages Apache, PHP-CGI (multiple versions), and MariaDB through a single dark-t
 
 ## Features
 
-- **One-click start/stop** — Apache, PHP-CGI, and MariaDB start automatically on launch
+- **Manual start/stop** — start only the services you need, individually or all at once
 - **Multiple PHP versions** — 7.4, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5 (switch per site)
 - **Virtual host management** — add local domains with custom document roots
 - **HTTPS support** — auto-generates trusted local SSL certificates via [mkcert](https://github.com/FiloSottile/mkcert)
 - **phpMyAdmin built-in** — accessible at `localhost/phpmyadmin`
 - **System tray** — close the window and services keep running in the background
 - **Auto-download** — downloads and installs Apache, MariaDB, PHP, phpMyAdmin on first run
-- **Portable data** — all binaries stored in `%APPDATA%\LocalDevManager` (no PATH pollution)
+- **Portable data** — all binaries stored in `%APPDATA%\MampPoo` (no PATH pollution)
 
 ---
 
@@ -79,7 +79,7 @@ mamp_poo/
 
 ## Data Directory
 
-All binaries and config are stored in `%APPDATA%\LocalDevManager\` — never inside the project folder.
+All binaries and config are stored in `%APPDATA%\MampPoo\` — never inside the project folder.
 
 | Path | Contents |
 |---|---|

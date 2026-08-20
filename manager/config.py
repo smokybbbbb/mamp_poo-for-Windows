@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List
 
 # Store binaries in AppData so path never contains Thai/special chars
-DATA_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "LocalDevManager"
+DATA_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "MampPoo"
 
 APACHE_DIR      = DATA_DIR / "apache"
 PHP_DIR         = DATA_DIR / "php"

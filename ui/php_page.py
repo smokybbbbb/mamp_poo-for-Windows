@@ -6,6 +6,7 @@ import customtkinter as ctk
 
 from manager import downloader, server as srv
 from manager.config import AppConfig, PHP_VERSIONS, PHP_PORTS, PHP_DIR, save_config
+from ui.fonts import APP_FONT
 
 
 class PhpPage(ctk.CTkFrame):
@@ -16,7 +17,7 @@ class PhpPage(ctk.CTkFrame):
         self._build()
 
     def _build(self):
-        ctk.CTkLabel(self, text="PHP Versions", font=("", 20, "bold")).pack(
+        ctk.CTkLabel(self, text="PHP Versions", font=(APP_FONT, 20, "bold")).pack(
             anchor="w", padx=20, pady=(16, 2))
         ctk.CTkLabel(self, text="PHP แต่ละ version รันเป็น FastCGI process แยกกัน",
                      text_color="gray").pack(anchor="w", padx=20, pady=(0, 12))
@@ -41,14 +42,14 @@ class PhpPage(ctk.CTkFrame):
 
         dot_col = "#22c55e" if running else ("#60a5fa" if ready else "#4b5563")
         ctk.CTkLabel(card, text="●", text_color=dot_col,
-                     font=("", 14), width=26).grid(row=0, column=0, padx=(12, 4), pady=14)
+                     font=(APP_FONT, 14), width=26).grid(row=0, column=0, padx=(12, 4), pady=14)
 
-        ctk.CTkLabel(card, text=f"PHP {ver}", font=("", 13, "bold"),
+        ctk.CTkLabel(card, text=f"PHP {ver}", font=(APP_FONT, 13, "bold"),
                      anchor="w").grid(row=0, column=1, sticky="w")
         status_text = "กำลังรัน" if running else ("หยุด" if ready else "ยังไม่ได้ติดตั้ง")
         ctk.CTkLabel(card, text=f"Port {port}  ·  {status_text}",
                      text_color="gray", anchor="w",
-                     font=("", 11)).grid(row=1, column=1, sticky="w", pady=(0, 10))
+                     font=(APP_FONT, 11)).grid(row=1, column=1, sticky="w", pady=(0, 10))
 
         btns = ctk.CTkFrame(card, fg_color="transparent")
         btns.grid(row=0, column=2, rowspan=2, padx=(0, 8))
